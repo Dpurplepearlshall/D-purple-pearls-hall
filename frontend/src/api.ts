@@ -33,8 +33,11 @@ export const api = {
   activity: () => request<{ activity: Activity[] }>('/owner/activity'),
   uploadResult: (data: { studentAdmissionNumber: string; subject: string; score: number }) =>
     request<{ result: { id: string; created_at: string } }>('/results', { method: 'POST', body: JSON.stringify(data) })
+  ,
+  myResults: () => request<{ results: Result[] }>('/results/me')
 };
 
 export type Student = { id: string; admission_number: string; name: string; active: boolean; created_at: string };
 export type Teacher = { id: string; teacher_id: string; name: string; active: boolean; created_at: string };
 export type Activity = { id: number; event: string; metadata: Record<string, unknown>; created_at: string; username?: string; display_name?: string; role?: string };
+export type Result = { id: string; subject: string; score: number; created_at: string };

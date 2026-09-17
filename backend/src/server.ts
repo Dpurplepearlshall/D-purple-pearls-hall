@@ -254,6 +254,21 @@ app.post('/api/results', authenticate, requireRole('teacher', 'owner'), async (r
   } catch (error) { next(error); }
 });
 
+app.get('/api/results/me', authenticate, requireRole('student'), async (req, res, next) => {
+  try {
+    const result = await query<{ id: string; subject: string; score: number; created_at: string }>(
+      `SELECT r.id, r.subject, r.score, r.created_at
+       FROM results r
+       JOIN users u ON u.student_id = r.student_id
+       WHERE u.id = $1
+       ORDER BY r.created_at ASC
+       LIMIT 20`,
+      [req.user!.id]
+    );
+    res.json({ results: result.rows });
+  } catch (error) { next(error); }
+});
+
 app.use(notFound);
 app.use(errorHandler);
 

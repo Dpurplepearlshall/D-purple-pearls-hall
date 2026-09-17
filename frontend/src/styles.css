@@ -54,6 +54,11 @@ header strong { font-size: 16px; }
 .activity time { color: #766c83; font-size: 12px; }
 .event-dot { width: 9px; height: 9px; border-radius: 50%; background: #7542b9; }
 .event-dot.upload { background: #e29b46; }
+.result-table-wrap { overflow-x: auto; margin: 18px 0; }
+.result-table { width: 100%; border-collapse: collapse; background: #fff; }
+.result-table th, .result-table td { border: 1px solid #eadff7; padding: 10px; text-align: left; }
+.result-table th { background: #f3e8ff; color: #4c1d95; }
+.result-table input { width: 100%; box-sizing: border-box; border: 1px solid #d8c6ec; border-radius: 7px; padding: 8px; }
 .narrow { max-width: 540px; }
 .welcome { max-width: 700px; }
 @media (max-width: 720px) { .auth-card { padding: 30px 24px; } .content { width: min(100% - 30px, 600px); margin: 24px auto; } .panel-grid { grid-template-columns: 1fr; } .record { grid-template-columns: 1fr auto; } .record .danger { grid-column: 2; grid-row: 1; } .activity { align-items: flex-start; flex-wrap: wrap; } .activity time { width: 100%; padding-left: 21px; } }

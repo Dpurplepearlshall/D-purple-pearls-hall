@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type Activity, type Student, type Teacher, type User } from './api';
+import { api, type Activity, type Result, type Student, type Teacher, type User } from './api';
 
 type Notice = { type: 'error' | 'success'; text: string } | null;
 const date = (value: string) => new Date(value).toLocaleString();
@@ -93,14 +93,42 @@ function List({ title, empty, rows, onDelete }: { title: string; empty: string; 
 }
 
 function TeacherPanel({ onLogout }: { onLogout: () => void }) {
-  const [form, setForm] = useState({ studentAdmissionNumber: '', subject: '', score: '' });
+  const [admissionNumber, setAdmissionNumber] = useState('');
+  const [rows, setRows] = useState(() => Array.from({ length: 20 }, () => ({ subject: '', score: '' })));
   const [notice, setNotice] = useState<Notice>(null);
-  const submit = async (e: React.FormEvent) => { e.preventDefault(); try { await api.uploadResult({ ...form, score: Number(form.score) }); setNotice({ type: 'success', text: 'Result uploaded and activity logged.' }); setForm({ ...form, score: '' }); } catch (e) { setNotice({ type: 'error', text: e instanceof Error ? e.message : 'Unable to upload result.' }); } };
-  return <PortalLayout title="Teacher workspace" onLogout={onLogout}><section className="narrow panel"><h2>Upload student result</h2><p className="muted">Only active whitelisted students can receive results.</p>{notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}<form onSubmit={submit}><Field label="Student admission number" value={form.studentAdmissionNumber} onChange={(v) => setForm({ ...form, studentAdmissionNumber: v })} /><Field label="Subject" value={form.subject} onChange={(v) => setForm({ ...form, subject: v })} /><Field label="Score (0–100)" type="number" value={form.score} onChange={(v) => setForm({ ...form, score: v })} /><button className="primary">Upload result</button></form></section></PortalLayout>;
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const filled = rows.filter((row) => row.subject.trim() || row.score !== '');
+    if (!filled.length) { setNotice({ type: 'error', text: 'Enter at least one subject and score.' }); return; }
+    if (filled.some((row) => !row.subject.trim() || row.score === '' || Number(row.score) < 0 || Number(row.score) > 100)) {
+      setNotice({ type: 'error', text: 'Each used row needs a subject and a score from 0 to 100.' }); return;
+    }
+    try {
+      for (const row of filled) await api.uploadResult({ studentAdmissionNumber: admissionNumber, subject: row.subject, score: Number(row.score) });
+      setNotice({ type: 'success', text: `${filled.length} result${filled.length === 1 ? '' : 's'} uploaded successfully.` });
+      setRows(Array.from({ length: 20 }, () => ({ subject: '', score: '' })));
+    } catch (e) { setNotice({ type: 'error', text: e instanceof Error ? e.message : 'Unable to upload results.' }); }
+  };
+  return <PortalLayout title="Teacher workspace" onLogout={onLogout}><section className="panel"><h2>Upload student results</h2><p className="muted">Only active whitelisted students can receive results.</p>{notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}<form onSubmit={submit}><Field label="Student admission number" value={admissionNumber} onChange={setAdmissionNumber} /><div className="result-table-wrap"><table className="result-table"><thead><tr><th>Subject</th><th>Grade in number</th><th>Letter grade</th></tr></thead><tbody>{rows.map((row, index) => <tr key={index}><td><input aria-label={`Subject ${index + 1}`} value={row.subject} onChange={(e) => setRows(rows.map((item, i) => i === index ? { ...item, subject: e.target.value } : item))} /></td><td><input aria-label={`Score ${index + 1}`} type="number" min="0" max="100" value={row.score} onChange={(e) => setRows(rows.map((item, i) => i === index ? { ...item, score: e.target.value } : item))} /></td><td>{row.score === '' ? '-' : letterGrade(Number(row.score))}</td></tr>)}</tbody></table></div><button className="primary">Upload results</button></form></section></PortalLayout>;
 }
 
 function StudentPanel({ onLogout }: { onLogout: () => void }) {
-  return <PortalLayout title="Student workspace" onLogout={onLogout}><section className="panel welcome"><h2>Your account is active</h2><p className="muted">Results uploaded by your teachers will be available through the school office. Contact the owner if your whitelist status changes.</p></section></PortalLayout>;
+  const [results, setResults] = useState<Result[]>([]);
+  const [notice, setNotice] = useState<Notice>(null);
+  useEffect(() => { api.myResults().then((response) => setResults(response.results)).catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Unable to load results.' })); }, []);
+  return <PortalLayout title="Student workspace" onLogout={onLogout}><section className="panel"><h2>Your results</h2>{notice && <div className="notice error">{notice.text}</div>}{results.length === 0 ? <p className="muted">No results have been uploaded yet.</p> : <div className="result-table-wrap"><table className="result-table"><thead><tr><th>Subject</th><th>Grade in number</th><th>Letter grade</th></tr></thead><tbody>{results.map((result) => <tr key={result.id}><td>{result.subject}</td><td>{Number(result.score)}</td><td>{letterGrade(Number(result.score))}</td></tr>)}</tbody></table></div>}</section></PortalLayout>;
+}
+
+function letterGrade(score: number) {
+  if (score >= 75) return 'A1';
+  if (score >= 70) return 'B2';
+  if (score >= 65) return 'B3';
+  if (score >= 60) return 'C4';
+  if (score >= 55) return 'C5';
+  if (score >= 50) return 'C6';
+  if (score >= 45) return 'D7';
+  if (score >= 40) return 'E8';
+  return 'F9';
 }
 
 function PortalLayout({ title, onLogout, children }: { title: string; onLogout: () => void; children: React.ReactNode }) {
