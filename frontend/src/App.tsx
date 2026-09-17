@@ -35,11 +35,11 @@ function Login({ onLogin }: { onLogin: (user: User, token: string) => void }) {
       <img className="brand-mark" src="/school-logo.jpg" alt="D Purple Pearls Hall logo" />
       <p className="eyebrow">D-PURPLE PEARLS HALL</p>
       <h1>{register ? `${registerRole === 'student' ? 'Student' : 'Teacher'} registration` : ownerMode ? 'Owner login' : 'Welcome back'}</h1>
-      <p className="muted">{register ? `Your ${registerRole === 'student' ? 'admission number' : 'teacher ID'} must be on the owner's active whitelist. Your registered name comes from the school record.` : ownerMode ? 'Sign in to manage whitelists, accounts, and activity.' : 'Sign in to the school portal.'}</p>
+      <p className="muted">{register ? `Your ${registerRole === 'student' ? 'admission number' : 'teacher ID'} must be on the owner's active whitelist. Your registered name comes from the school record.` : ownerMode ? 'Sign in to manage whitelists, accounts, and activity.' : 'Students use their admission number and teachers use their teacher ID to sign in.'}</p>
       {notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}
       <form onSubmit={submit}>
         {register && <><div className="role-toggle"><button type="button" className={registerRole === 'student' ? 'selected' : ''} onClick={() => setRegisterRole('student')}>Student</button><button type="button" className={registerRole === 'teacher' ? 'selected' : ''} onClick={() => setRegisterRole('teacher')}>Teacher</button></div><Field label={registerRole === 'student' ? 'Admission number' : 'Teacher ID'} value={identifier} onChange={setIdentifier} /><Field label="Gmail address" type="email" value={email} onChange={setEmail} placeholder="you@gmail.com" /></>}
-        {!register && <Field label={ownerMode ? 'Owner name' : 'Gmail address'} type="text" value={identifier} onChange={setIdentifier} placeholder={ownerMode ? 'Umm Raaidah' : 'you@gmail.com'} />}
+        {!register && <Field label={ownerMode ? 'Owner name' : 'Admission number or Teacher ID'} type="text" value={identifier} onChange={setIdentifier} placeholder={ownerMode ? 'Umm Raaidah' : 'Enter your school ID'} />}
         <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" />
         <button className="primary" type="submit">{register ? `Create ${registerRole} account` : 'Sign in'}</button>
       </form>

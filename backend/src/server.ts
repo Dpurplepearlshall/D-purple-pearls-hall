@@ -42,17 +42,17 @@ app.post('/api/auth/register/student', async (req, res, next) => {
         res.status(403).json({ error: 'This admission number is not active on the whitelist. Please contact the owner.' });
         return;
       }
-      const existing = await client.query('SELECT id FROM users WHERE lower(username) = lower($1)', [input.email]);
+      const existing = await client.query('SELECT id FROM users WHERE student_id = $1', [allowed.rows[0].id]);
       if (existing.rowCount) {
         await client.query('ROLLBACK');
-        res.status(409).json({ error: 'An account already exists for this Gmail address.' });
+        res.status(409).json({ error: 'An account already exists for this school ID.' });
         return;
       }
       const passwordHash = await hashPassword(input.password);
       const user = await client.query<{ id: string }>(
         `INSERT INTO users (username, email, password_hash, role, display_name, student_id)
-         VALUES ($1, $1, $2, 'student', $3, $4) RETURNING id`,
-        [input.email, passwordHash, allowed.rows[0].name, allowed.rows[0].id]
+         VALUES ($1, $2, $3, 'student', $4, $5) RETURNING id`,
+        [input.admissionNumber, input.email, passwordHash, allowed.rows[0].name, allowed.rows[0].id]
       );
       await client.query('COMMIT');
       await logActivity(user.rows[0].id, 'student_registered', { admissionNumber: input.admissionNumber });
@@ -82,17 +82,17 @@ app.post('/api/auth/register/teacher', async (req, res, next) => {
         res.status(403).json({ error: 'This teacher ID is not active on the whitelist. Please contact the owner.' });
         return;
       }
-      const existing = await client.query('SELECT id FROM users WHERE lower(username) = lower($1)', [input.email]);
+      const existing = await client.query('SELECT id FROM users WHERE teacher_id = $1', [allowed.rows[0].id]);
       if (existing.rowCount) {
         await client.query('ROLLBACK');
-        res.status(409).json({ error: 'An account already exists for this Gmail address.' });
+        res.status(409).json({ error: 'An account already exists for this school ID.' });
         return;
       }
       const passwordHash = await hashPassword(input.password);
       const user = await client.query<{ id: string }>(
         `INSERT INTO users (username, email, password_hash, role, display_name, teacher_id)
-         VALUES ($1, $1, $2, 'teacher', $3, $4) RETURNING id`,
-        [input.email, passwordHash, allowed.rows[0].name, allowed.rows[0].id]
+         VALUES ($1, $2, $3, 'teacher', $4, $5) RETURNING id`,
+        [input.teacherId, input.email, passwordHash, allowed.rows[0].name, allowed.rows[0].id]
       );
       await client.query('COMMIT');
       await logActivity(user.rows[0].id, 'teacher_registered', { teacherId: input.teacherId });
