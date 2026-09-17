@@ -1,0 +1,39 @@
+databases:
+  - name: d-purple-pearls-hall-db
+    databaseName: d_purple_pearls
+    user: d_purple_pearls
+
+services:
+  - type: web
+    name: d-purple-pearls-hall-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    preDeployCommand: npm run migrate && npm run seed
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: d-purple-pearls-hall-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: OWNER_USERNAME
+        value: Umm Raaidah
+      - key: OWNER_PASSWORD
+        sync: false
+      - key: FRONTEND_URL
+        value: https://d-purple-pearls-hall.onrender.com
+
+  - type: web
+    name: d-purple-pearls-hall
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://d-purple-pearls-hall-api.onrender.com/api
