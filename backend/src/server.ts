@@ -243,12 +243,12 @@ app.post('/api/results', authenticate, requireRole('teacher', 'owner'), async (r
       return;
     }
     const result = await query<{ id: string; created_at: string }>(
-      `INSERT INTO results (student_id, subject, score, uploaded_by) VALUES ($1, $2, $3, $4)
+      `INSERT INTO results (student_id, term, subject, score, uploaded_by) VALUES ($1, $2, $3, $4, $5)
        RETURNING id, created_at`,
-      [student.rows[0].id, input.subject, input.score, req.user!.id]
+      [student.rows[0].id, input.term, input.subject, input.score, req.user!.id]
     );
     await logActivity(req.user!.id, 'result_uploaded', {
-      studentAdmissionNumber: input.studentAdmissionNumber, subject: input.subject, score: input.score
+      studentAdmissionNumber: input.studentAdmissionNumber, term: input.term, subject: input.subject, score: input.score
     });
     res.status(201).json({ result: result.rows[0] });
   } catch (error) { next(error); }
@@ -256,13 +256,13 @@ app.post('/api/results', authenticate, requireRole('teacher', 'owner'), async (r
 
 app.get('/api/results/me', authenticate, requireRole('student'), async (req, res, next) => {
   try {
-    const result = await query<{ id: string; subject: string; score: number; created_at: string }>(
-      `SELECT r.id, r.subject, r.score, r.created_at
+    const result = await query<{ id: string; term: string | null; subject: string; score: number; created_at: string }>(
+      `SELECT r.id, COALESCE(r.term, 'Unassigned') AS term, r.subject, r.score, r.created_at
        FROM results r
        JOIN users u ON u.student_id = r.student_id
        WHERE u.id = $1
-       ORDER BY r.created_at ASC
-       LIMIT 20`,
+       ORDER BY COALESCE(r.term, 'Unassigned'), r.created_at ASC
+       LIMIT 200`,
       [req.user!.id]
     );
     res.json({ results: result.rows });
