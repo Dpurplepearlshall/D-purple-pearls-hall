@@ -34,6 +34,7 @@ export const teacherRegistrationSchema = z.object({
 
 export const resultSchema = z.object({
   studentAdmissionNumber: z.string().trim().min(1).max(40),
+  className: z.string().trim().min(1).max(80),
   term: z.enum(['Term 1', 'Term 2', 'Term 3']),
   subject: z.string().trim().min(1).max(80),
   score: z.number().min(0).max(100)

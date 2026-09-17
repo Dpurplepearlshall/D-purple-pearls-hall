@@ -31,13 +31,22 @@ export const api = {
     request<{ teacher: Teacher }>('/owner/teachers', { method: 'POST', body: JSON.stringify({ teacherId, name }) }),
   deleteTeacher: (id: string) => request<{ message: string }>(`/owner/teachers/${id}`, { method: 'DELETE' }),
   activity: () => request<{ activity: Activity[] }>('/owner/activity'),
-  uploadResult: (data: { studentAdmissionNumber: string; term: string; subject: string; score: number }) =>
+  uploadResult: (data: { studentAdmissionNumber: string; className: string; term: string; subject: string; score: number }) =>
     request<{ result: { id: string; created_at: string } }>('/results', { method: 'POST', body: JSON.stringify(data) })
   ,
-  myResults: () => request<{ results: Result[] }>('/results/me')
+  myResults: () => request<{ results: Result[]; summaries: TermSummary[] }>('/results/me'),
+  studentResults: (id: string) => request<StudentResultDetails>(`/owner/students/${encodeURIComponent(id)}/results`)
 };
 
 export type Student = { id: string; admission_number: string; name: string; active: boolean; created_at: string };
 export type Teacher = { id: string; teacher_id: string; name: string; active: boolean; created_at: string };
 export type Activity = { id: number; event: string; metadata: Record<string, unknown>; created_at: string; username?: string; display_name?: string; role?: string };
-export type Result = { id: string; term: string; subject: string; score: number; created_at: string };
+export type Result = { id: string; term: string; class_name: string; subject: string; score: number; created_at: string };
+export type TermSummary = { term: string; average: number; rank: number; totalStudents: number };
+export type Ranking = { term: string; student_id: string; admission_number: string; name: string; average: number; rank: number };
+export type StudentResultDetails = {
+  student: Student;
+  results: Result[];
+  summaries: TermSummary[];
+  rankings: Ranking[];
+};

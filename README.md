@@ -8,7 +8,9 @@ Full-stack school whitelist portal built with React/Vite/TypeScript, an Express/
 - Students and teachers can register only when their admission number/teacher ID is active on the owner-managed whitelist; they provide a Gmail address and password, while their display name comes from the school record.
 - Inactive or unlisted accounts cannot log in and receive a contact-owner message.
 - Owner console to add, list, and delete (soft-disable) students and teachers. Deleting also removes the related login.
-- Teachers and owners can upload a result for an active student; each upload is recorded in the owner activity log.
+- Teachers and owners can upload term results for an active student, including the student's current class; the class is retained with every result and in the upload history.
+- Students see each term average out of 100 and their rank among students with results in that term.
+- Owners can select an admission number in the student list to inspect the student's scores and the complete term ranking.
 - Owner activity page lists login and result-upload events with timestamps.
 - SQL migration and environment-driven owner seed; no credentials or secrets are committed.
 
@@ -44,7 +46,7 @@ npm test
 
 ## Using the portal
 
-Log in as the seeded owner, add active students and teachers, then have each person register from the login screen using their whitelisted ID and a password. Teachers can upload results for active student admission numbers. Owner activity shows sign-ins and uploads.
+Log in as the seeded owner, add active students and teachers, then have each person register from the login screen using their whitelisted ID and a password. Teachers can upload results for active student admission numbers by entering the current class, term, subjects, and scores. Students see term averages and rankings, while owners can click an admission number to inspect scores and the complete ranking for that term. Owner activity shows sign-ins and uploads, including the class and term.
 
 ## Environment variables
 

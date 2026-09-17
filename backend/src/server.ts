@@ -231,6 +231,22 @@ app.get('/api/owner/activity', authenticate, requireRole('owner'), async (_req, 
   } catch (error) { next(error); }
 });
 
+const rankingQuery = `
+  WITH averages AS (
+    SELECT r.term, s.id AS student_id, s.admission_number, s.name,
+           AVG(r.score)::numeric(7,2) AS average
+    FROM results r
+    JOIN allowed_students s ON s.id = r.student_id
+    WHERE r.term IS NOT NULL
+    GROUP BY r.term, s.id, s.admission_number, s.name
+  )
+  SELECT term, student_id, admission_number, name, average,
+         RANK() OVER (PARTITION BY term ORDER BY average DESC)::int AS rank,
+         COUNT(*) OVER (PARTITION BY term)::int AS total_students
+  FROM averages
+  ORDER BY term, rank, admission_number
+`;
+
 app.post('/api/results', authenticate, requireRole('teacher', 'owner'), async (req, res, next) => {
   try {
     const input = resultSchema.parse(req.body);
@@ -243,12 +259,13 @@ app.post('/api/results', authenticate, requireRole('teacher', 'owner'), async (r
       return;
     }
     const result = await query<{ id: string; created_at: string }>(
-      `INSERT INTO results (student_id, term, subject, score, uploaded_by) VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO results (student_id, class_name, term, subject, score, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, created_at`,
-      [student.rows[0].id, input.term, input.subject, input.score, req.user!.id]
+      [student.rows[0].id, input.className, input.term, input.subject, input.score, req.user!.id]
     );
     await logActivity(req.user!.id, 'result_uploaded', {
-      studentAdmissionNumber: input.studentAdmissionNumber, term: input.term, subject: input.subject, score: input.score
+      studentAdmissionNumber: input.studentAdmissionNumber, className: input.className,
+      term: input.term, subject: input.subject, score: input.score
     });
     res.status(201).json({ result: result.rows[0] });
   } catch (error) { next(error); }
@@ -256,8 +273,14 @@ app.post('/api/results', authenticate, requireRole('teacher', 'owner'), async (r
 
 app.get('/api/results/me', authenticate, requireRole('student'), async (req, res, next) => {
   try {
-    const result = await query<{ id: string; term: string | null; subject: string; score: number; created_at: string }>(
-      `SELECT r.id, COALESCE(r.term, 'Unassigned') AS term, r.subject, r.score, r.created_at
+    const account = await query<{ student_id: string }>('SELECT student_id FROM users WHERE id = $1', [req.user!.id]);
+    if (!account.rowCount || !account.rows[0].student_id) {
+      res.status(404).json({ error: 'Student account not found.' });
+      return;
+    }
+    const result = await query<{ id: string; term: string; class_name: string; subject: string; score: number; created_at: string }>(
+      `SELECT r.id, COALESCE(r.term, 'Unassigned') AS term, COALESCE(r.class_name, 'Unassigned') AS class_name,
+              r.subject, r.score, r.created_at
        FROM results r
        JOIN users u ON u.student_id = r.student_id
        WHERE u.id = $1
@@ -265,7 +288,42 @@ app.get('/api/results/me', authenticate, requireRole('student'), async (req, res
        LIMIT 200`,
       [req.user!.id]
     );
-    res.json({ results: result.rows });
+    const rankings = await query<{ term: string; student_id: string; average: number; rank: number; total_students: number }>(
+      rankingQuery
+    );
+    const summaries = rankings.rows
+      .filter((ranking) => ranking.student_id === account.rows[0].student_id)
+      .map(({ term, average, rank, total_students }) => ({ term, average, rank, totalStudents: total_students }));
+    res.json({ results: result.rows, summaries });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/owner/students/:id/results', authenticate, requireRole('owner'), async (req, res, next) => {
+  try {
+    const student = await query<{ id: string; admission_number: string; name: string; active: boolean; created_at: string }>(
+      'SELECT id, admission_number, name, active, created_at FROM allowed_students WHERE id = $1',
+      [req.params.id]
+    );
+    if (!student.rowCount) {
+      res.status(404).json({ error: 'Student not found.' });
+      return;
+    }
+    const results = await query<{ id: string; term: string; class_name: string; subject: string; score: number; created_at: string }>(
+      `SELECT r.id, COALESCE(r.term, 'Unassigned') AS term, COALESCE(r.class_name, 'Unassigned') AS class_name,
+              r.subject, r.score, r.created_at
+       FROM results r
+       WHERE r.student_id = $1
+       ORDER BY COALESCE(r.term, 'Unassigned'), r.created_at ASC`,
+      [req.params.id]
+    );
+    const rankings = await query<{
+      term: string; student_id: string; admission_number: string; name: string;
+      average: number; rank: number; total_students: number;
+    }>(rankingQuery);
+    const summaries = rankings.rows
+      .filter((ranking) => ranking.student_id === req.params.id)
+      .map(({ term, average, rank, total_students }) => ({ term, average, rank, totalStudents: total_students }));
+    res.json({ student: student.rows[0], results: results.rows, summaries, rankings: rankings.rows });
   } catch (error) { next(error); }
 });
 
