@@ -4,7 +4,7 @@ import { config } from './config.js';
 import { pool, query } from './db.js';
 import { authenticate, comparePassword, hashPassword, issueToken, requireRole } from './auth.js';
 import { errorHandler, notFound } from './middleware.js';
-import { loginSchema, registrationSchema, resultSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
+import { changePasswordSchema, loginSchema, registrationSchema, resultSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
 
 const app = express();
 app.use(cors({ origin: config.frontendUrl, credentials: false }));
@@ -136,6 +136,24 @@ app.post('/api/auth/login', async (req, res, next) => {
 });
 
 app.get('/api/me', authenticate, (req, res) => res.json({ user: req.user }));
+
+app.post('/api/owner/password', authenticate, requireRole('owner'), async (req, res, next) => {
+  try {
+    const input = changePasswordSchema.parse(req.body);
+    const owner = await query<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = $1 AND role = \'owner\'', [req.user!.id]);
+    if (!owner.rowCount || !(await comparePassword(input.currentPassword, owner.rows[0].password_hash))) {
+      res.status(401).json({ error: 'The current password is incorrect.' });
+      return;
+    }
+    if (input.currentPassword === input.newPassword) {
+      res.status(400).json({ error: 'The new password must be different from the current password.' });
+      return;
+    }
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2 AND role = \'owner\'', [await hashPassword(input.newPassword), req.user!.id]);
+    await logActivity(req.user!.id, 'owner_password_changed');
+    res.json({ message: 'Owner password changed successfully.' });
+  } catch (error) { next(error); }
+});
 
 app.get('/api/owner/students', authenticate, requireRole('owner'), async (_req, res, next) => {
   try {

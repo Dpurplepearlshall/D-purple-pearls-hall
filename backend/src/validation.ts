@@ -5,6 +5,11 @@ export const loginSchema = z.object({
   password: z.string().min(8).max(128)
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(8).max(128),
+  newPassword: z.string().min(8).max(128)
+});
+
 export const studentSchema = z.object({
   admissionNumber: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9/-]+$/),
   name: z.string().trim().min(2).max(120)

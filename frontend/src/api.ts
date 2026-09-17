@@ -16,6 +16,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   login: (identifier: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
+  changeOwnerPassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>('/owner/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   registerStudent: (admissionNumber: string, email: string, password: string) =>
     request<{ message: string }>('/auth/register/student', { method: 'POST', body: JSON.stringify({ admissionNumber, email, password }) }),
   registerTeacher: (teacherId: string, email: string, password: string) =>

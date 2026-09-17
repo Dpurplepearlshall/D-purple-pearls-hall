@@ -57,6 +57,7 @@ function OwnerPanel({ onLogout }: { onLogout: () => void }) {
   const [notice, setNotice] = useState<Notice>(null);
   const [studentForm, setStudentForm] = useState({ id: '', name: '' });
   const [teacherForm, setTeacherForm] = useState({ id: '', name: '' });
+  const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' });
   const load = async () => {
     try {
       if (tab === 'students') setStudents((await api.students()).students);
@@ -68,12 +69,22 @@ function OwnerPanel({ onLogout }: { onLogout: () => void }) {
   const saveStudent = async (e: React.FormEvent) => { e.preventDefault(); try { await api.addStudent(studentForm.id, studentForm.name); setStudentForm({ id: '', name: '' }); setNotice({ type: 'success', text: 'Student added to the whitelist.' }); load(); } catch (e) { setNotice({ type: 'error', text: e instanceof Error ? e.message : 'Unable to save.' }); } };
   const saveTeacher = async (e: React.FormEvent) => { e.preventDefault(); try { await api.addTeacher(teacherForm.id, teacherForm.name); setTeacherForm({ id: '', name: '' }); setNotice({ type: 'success', text: 'Teacher added to the whitelist.' }); load(); } catch (e) { setNotice({ type: 'error', text: e instanceof Error ? e.message : 'Unable to save.' }); } };
   const remove = async (kind: 'student' | 'teacher', id: string) => { if (!confirm('Mark this account inactive and remove its login?')) return; try { kind === 'student' ? await api.deleteStudent(id) : await api.deleteTeacher(id); load(); } catch (e) { setNotice({ type: 'error', text: e instanceof Error ? e.message : 'Unable to delete.' }); } };
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordForm.next !== passwordForm.confirm) { setNotice({ type: 'error', text: 'The new passwords do not match.' }); return; }
+    try {
+      const result = await api.changeOwnerPassword(passwordForm.current, passwordForm.next);
+      setPasswordForm({ current: '', next: '', confirm: '' });
+      setNotice({ type: 'success', text: result.message });
+    } catch (e) { setNotice({ type: 'error', text: e instanceof Error ? e.message : 'Unable to change password.' }); }
+  };
   return <PortalLayout title="Owner console" onLogout={onLogout}>
     <nav className="tabs">{(['students', 'teachers', 'activity'] as const).map((item) => <button className={tab === item ? 'active' : ''} onClick={() => { setTab(item); setTimeout(load, 0); }} key={item}>{item === 'students' ? 'Students' : item === 'teachers' ? 'Teachers' : 'Activity log'}</button>)}</nav>
     {notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}
     {tab === 'students' && <section className="panel-grid"><div className="panel"><h2>Add student</h2><form onSubmit={saveStudent}><Field label="Admission number" value={studentForm.id} onChange={(v) => setStudentForm({ ...studentForm, id: v })} /><Field label="Full name" value={studentForm.name} onChange={(v) => setStudentForm({ ...studentForm, name: v })} /><button className="primary">Add to whitelist</button></form></div><List title="Allowed students" empty="No students yet." rows={students.map((s) => ({ id: s.id, primary: s.admission_number, secondary: s.name, active: s.active }))} onDelete={(id) => remove('student', id)} /></section>}
     {tab === 'teachers' && <section className="panel-grid"><div className="panel"><h2>Add teacher</h2><form onSubmit={saveTeacher}><Field label="Teacher ID" value={teacherForm.id} onChange={(v) => setTeacherForm({ ...teacherForm, id: v })} /><Field label="Full name" value={teacherForm.name} onChange={(v) => setTeacherForm({ ...teacherForm, name: v })} /><button className="primary">Add to whitelist</button></form></div><List title="Allowed teachers" empty="No teachers yet." rows={teachers.map((t) => ({ id: t.id, primary: t.teacher_id, secondary: t.name, active: t.active }))} onDelete={(id) => remove('teacher', id)} /></section>}
     {tab === 'activity' && <section className="panel"><h2>Recent sign-ins & result uploads</h2><button className="secondary refresh" onClick={load}>Refresh</button>{activity.length === 0 ? <p className="muted">No activity recorded yet.</p> : <div className="activity-list">{activity.map((item) => <div className="activity" key={item.id}><span className={`event-dot ${item.event === 'login' ? 'login' : 'upload'}`} /><div><strong>{item.event === 'login' ? 'Signed in' : 'Result uploaded'}</strong><p>{item.display_name ?? item.username ?? 'Deleted account'} · {item.role ?? 'unknown'}</p></div><time>{date(item.created_at)}</time></div>)}</div>}</section>}
+    <section className="panel narrow"><h2>Change owner password</h2><p className="muted">You will need your current password. Use at least 8 characters.</p><form onSubmit={changePassword}><Field label="Current password" type="password" value={passwordForm.current} onChange={(v) => setPasswordForm({ ...passwordForm, current: v })} /><Field label="New password" type="password" value={passwordForm.next} onChange={(v) => setPasswordForm({ ...passwordForm, next: v })} /><Field label="Confirm new password" type="password" value={passwordForm.confirm} onChange={(v) => setPasswordForm({ ...passwordForm, confirm: v })} /><button className="primary">Change password</button></form></section>
   </PortalLayout>;
 }
 
