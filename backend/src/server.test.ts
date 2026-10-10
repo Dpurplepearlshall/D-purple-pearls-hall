@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hashPassword, comparePassword } from './auth.js';
-import { resultSchema } from './validation.js';
+import { ownerPasswordResetSchema, resultSchema, studentSchema } from './validation.js';
 
 describe('password security', () => {
   it('hashes and verifies passwords without storing plaintext', async () => {
@@ -8,6 +8,24 @@ describe('password security', () => {
     expect(hash).not.toContain('a-secure-password');
     expect(await comparePassword('a-secure-password', hash)).toBe(true);
     expect(await comparePassword('wrong-password', hash)).toBe(false);
+  });
+
+  it('validates owner password resets for school accounts only', () => {
+    expect(ownerPasswordResetSchema.safeParse({
+      role: 'student',
+      schoolId: 'ST-001',
+      temporaryPassword: 'secure-temp-pass'
+    }).success).toBe(true);
+    expect(ownerPasswordResetSchema.safeParse({
+      role: 'owner',
+      schoolId: 'Umm Raaidah',
+      temporaryPassword: 'secure-temp-pass'
+    }).success).toBe(false);
+    expect(ownerPasswordResetSchema.safeParse({
+      role: 'teacher',
+      schoolId: 'T-001',
+      temporaryPassword: 'short'
+    }).success).toBe(false);
   });
 
   describe('result validation', () => {
@@ -31,6 +49,11 @@ describe('password security', () => {
       });
       expect(result.className).toBe('JSS 2A');
       expect(() => resultSchema.parse({ ...result, score: 101 })).toThrow();
+    });
+
+    it('accepts Nursery 1 and Nursery 2 for student records', () => {
+      expect(studentSchema.parse({ admissionNumber: 'N-001', name: 'Pearl Student', currentClass: 'Nursery 1' }).currentClass).toBe('Nursery 1');
+      expect(studentSchema.parse({ admissionNumber: 'N-002', name: 'Pearl Student', currentClass: 'Nursery 2' }).currentClass).toBe('Nursery 2');
     });
   });
 });

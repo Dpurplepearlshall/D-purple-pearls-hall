@@ -10,10 +10,16 @@ export const changePasswordSchema = z.object({
   newPassword: z.string().min(8).max(128)
 });
 
+export const ownerPasswordResetSchema = z.object({
+  role: z.enum(['student', 'teacher']),
+  schoolId: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9/-]+$/),
+  temporaryPassword: z.string().min(8).max(128)
+});
+
 export const studentSchema = z.object({
   admissionNumber: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9/-]+$/),
   name: z.string().trim().min(2).max(120),
-  currentClass: z.enum(['Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3', 'Graduated'])
+  currentClass: z.enum(['Nursery 1', 'Nursery 2', 'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3', 'Graduated'])
 });
 
 export const teacherSchema = z.object({

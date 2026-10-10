@@ -4,7 +4,7 @@ import { config } from './config.js';
 import { pool, query } from './db.js';
 import { authenticate, comparePassword, hashPassword, issueToken, requireRole } from './auth.js';
 import { errorHandler, notFound } from './middleware.js';
-import { changePasswordSchema, loginSchema, newsSchema, registrationSchema, resultSchema, schoolCalendarSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
+import { changePasswordSchema, loginSchema, newsSchema, ownerPasswordResetSchema, registrationSchema, resultSchema, schoolCalendarSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
 
 const app = express();
 app.use(cors({ origin: config.frontendUrl, credentials: false }));
@@ -65,6 +65,18 @@ async function logActivity(userId: string | null, event: string, metadata: Recor
     event,
     JSON.stringify(metadata)
   ]);
+}
+
+function csvCell(value: unknown) {
+  let text = value instanceof Date ? value.toISOString() : value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+  if (/^\s*[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {
+  return [headers, ...rows.map((row) => headers.map((header) => row[header] ?? ''))]
+    .map((row) => row.map(csvCell).join(','))
+    .join('\r\n');
 }
 
 app.get('/api/health', async (_req, res, next) => {
@@ -252,6 +264,35 @@ app.post('/api/owner/password', authenticate, requireRole('owner'), async (req, 
   } catch (error) { next(error); }
 });
 
+app.post('/api/owner/accounts/reset-password', authenticate, requireRole('owner'), async (req, res, next) => {
+  try {
+    const input = ownerPasswordResetSchema.parse(req.body);
+    const account = input.role === 'student'
+      ? await query<{ id: string }>(
+        `SELECT u.id FROM allowed_students s
+         JOIN users u ON u.student_id = s.id
+         WHERE s.admission_number = $1 AND s.active = true AND u.role = 'student'`,
+        [input.schoolId]
+      )
+      : await query<{ id: string }>(
+        `SELECT u.id FROM allowed_teachers t
+         JOIN users u ON u.teacher_id = t.id
+         WHERE t.teacher_id = $1 AND t.active = true AND u.role = 'teacher'`,
+        [input.schoolId]
+      );
+    if (!account.rowCount) {
+      res.status(404).json({ error: 'No active registered account matches that school ID.' });
+      return;
+    }
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+      await hashPassword(input.temporaryPassword),
+      account.rows[0].id
+    ]);
+    await logActivity(req.user!.id, 'owner_password_reset', { role: input.role, schoolId: input.schoolId });
+    res.json({ message: `Password reset for ${input.schoolId}. Share the replacement password with the account holder securely.` });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/owner/students', authenticate, requireRole('owner'), async (_req, res, next) => {
   try {
     const result = await query('SELECT id, admission_number, name, active, current_class, created_at FROM allowed_students ORDER BY current_class, name');
@@ -325,6 +366,73 @@ app.get('/api/owner/activity', authenticate, requireRole('owner'), async (_req, 
        ORDER BY a.created_at DESC LIMIT 200`
     );
     res.json({ activity: result.rows });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/owner/exports/:dataset', authenticate, requireRole('owner'), async (req, res, next) => {
+  try {
+    const datasets = {
+      students: {
+        filename: 'students.csv',
+        headers: ['admission_number', 'name', 'current_class', 'active', 'created_at'],
+        sql: 'SELECT admission_number, name, current_class, active, created_at FROM allowed_students ORDER BY current_class, name'
+      },
+      teachers: {
+        filename: 'teachers.csv',
+        headers: ['teacher_id', 'name', 'active', 'created_at'],
+        sql: 'SELECT teacher_id, name, active, created_at FROM allowed_teachers ORDER BY name'
+      },
+      results: {
+        filename: 'results.csv',
+        headers: ['admission_number', 'student_name', 'class_name', 'term', 'subject', 'score', 'created_at'],
+        sql: `SELECT s.admission_number, s.name AS student_name, r.class_name, r.term, r.subject, r.score, r.created_at
+              FROM results r JOIN allowed_students s ON s.id = r.student_id
+              ORDER BY s.admission_number, r.term, r.created_at`
+      },
+      activity: {
+        filename: 'activity.csv',
+        headers: ['event', 'username', 'display_name', 'role', 'metadata', 'created_at'],
+        sql: `SELECT a.event, u.username, u.display_name, u.role, a.metadata, a.created_at
+              FROM activity_logs a LEFT JOIN users u ON u.id = a.user_id
+              ORDER BY a.created_at DESC`
+      }
+    } as const;
+    const requestedDataset = req.params.dataset;
+    if (typeof requestedDataset !== 'string' || !Object.prototype.hasOwnProperty.call(datasets, requestedDataset)) {
+      res.status(404).json({ error: 'Unknown export. Choose students, teachers, results, or activity.' });
+      return;
+    }
+    const dataset = datasets[requestedDataset as keyof typeof datasets];
+    const rows = await query(dataset.sql);
+    res.set('Cache-Control', 'no-store');
+    res.attachment(dataset.filename).type('text/csv').send(toCsv([...dataset.headers], rows.rows));
+  } catch (error) { next(error); }
+});
+
+app.get('/api/owner/backup', authenticate, requireRole('owner'), async (_req, res, next) => {
+  try {
+    const [students, teachers, results, news, calendar, activity] = await Promise.all([
+      query('SELECT admission_number, name, current_class, active, created_at FROM allowed_students ORDER BY admission_number'),
+      query('SELECT teacher_id, name, active, created_at FROM allowed_teachers ORDER BY teacher_id'),
+      query(`SELECT s.admission_number, s.name AS student_name, r.class_name, r.term, r.subject, r.score, r.created_at
+             FROM results r JOIN allowed_students s ON s.id = r.student_id
+             ORDER BY s.admission_number, r.term, r.created_at`),
+      query('SELECT heading, body, created_at FROM school_news ORDER BY created_at'),
+      query('SELECT vacation_date, results_release_date, resumption_date, promotion_year FROM school_calendar WHERE id = TRUE'),
+      query(`SELECT a.event, a.metadata, a.created_at, u.username, u.display_name, u.role
+             FROM activity_logs a LEFT JOIN users u ON u.id = a.user_id
+             ORDER BY a.created_at`)
+    ]);
+    res.set('Cache-Control', 'no-store').attachment('school-portal-backup.json').json({
+      exportedAt: new Date().toISOString(),
+      note: 'This data backup intentionally excludes passwords, password hashes, tokens, and login credentials.',
+      students: students.rows,
+      teachers: teachers.rows,
+      results: results.rows,
+      news: news.rows,
+      calendar: calendar.rows[0] ?? null,
+      activity: activity.rows
+    });
   } catch (error) { next(error); }
 });
 

@@ -6,7 +6,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers }
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...options.headers }
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error ?? 'Request failed.');
@@ -18,6 +18,28 @@ export const api = {
     request<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
   changeOwnerPassword: (currentPassword: string, newPassword: string) =>
     request<{ message: string }>('/owner/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  resetAccountPassword: (role: 'student' | 'teacher', schoolId: string, temporaryPassword: string) =>
+    request<{ message: string }>('/owner/accounts/reset-password', { method: 'POST', body: JSON.stringify({ role, schoolId, temporaryPassword }) }),
+  downloadOwnerExport: async (dataset: 'students' | 'teachers' | 'results' | 'activity' | 'backup') => {
+    const token = localStorage.getItem('token');
+    const endpoint = dataset === 'backup' ? '/owner/backup' : `/owner/exports/${dataset}`;
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      headers: token ? { Authorization: 'Bearer ' + token } : {}
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error ?? 'Unable to download the export.');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = dataset === 'backup' ? 'school-portal-backup.json' : `${dataset}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
   registerStudent: (admissionNumber: string, email: string, password: string) =>
     request<{ message: string }>('/auth/register/student', { method: 'POST', body: JSON.stringify({ admissionNumber, email, password }) }),
   registerTeacher: (teacherId: string, email: string, password: string) =>
@@ -40,8 +62,7 @@ export const api = {
   saveCalendar: (calendar: SchoolCalendar) =>
     request<{ calendar: SchoolCalendar }>('/owner/calendar', { method: 'PUT', body: JSON.stringify(calendar) }),
   uploadResult: (data: { studentAdmissionNumber: string; className: string; term: string; subject: string; score: number }) =>
-    request<{ result: { id: string; created_at: string } }>('/results', { method: 'POST', body: JSON.stringify(data) })
-  ,
+    request<{ result: { id: string; created_at: string } }>('/results', { method: 'POST', body: JSON.stringify(data) }),
   myResults: () => request<{ results: Result[]; summaries: TermSummary[] }>('/results/me'),
   studentResults: (id: string) => request<StudentResultDetails>(`/owner/students/${encodeURIComponent(id)}/results`)
 };
