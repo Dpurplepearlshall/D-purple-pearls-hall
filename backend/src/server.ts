@@ -4,11 +4,59 @@ import { config } from './config.js';
 import { pool, query } from './db.js';
 import { authenticate, comparePassword, hashPassword, issueToken, requireRole } from './auth.js';
 import { errorHandler, notFound } from './middleware.js';
-import { changePasswordSchema, loginSchema, registrationSchema, resultSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
+import { changePasswordSchema, loginSchema, newsSchema, registrationSchema, resultSchema, schoolCalendarSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
 
 const app = express();
 app.use(cors({ origin: config.frontendUrl, credentials: false }));
 app.use(express.json({ limit: '1mb' }));
+
+const nigeriaClasses = ['Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3', 'Graduated'];
+let promotionCheckYear: number | null = null;
+let promotionCheck: Promise<void> | null = null;
+
+async function promoteStudentsIfDue() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: 'numeric' }).formatToParts(new Date());
+  const year = Number(parts.find((part) => part.type === 'year')?.value);
+  const month = Number(parts.find((part) => part.type === 'month')?.value);
+  if (month < 9 || promotionCheckYear === year) return;
+  if (promotionCheck) return promotionCheck;
+  promotionCheck = (async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT id FROM school_calendar WHERE id = TRUE FOR UPDATE');
+      const setting = await client.query<{ promotion_year: number | null }>('SELECT promotion_year FROM school_calendar WHERE id = TRUE');
+      if (setting.rows[0]?.promotion_year !== year) {
+        await client.query(
+          `UPDATE allowed_students
+           SET current_class = CASE current_class
+             WHEN 'Primary 1' THEN 'Primary 2' WHEN 'Primary 2' THEN 'Primary 3'
+             WHEN 'Primary 3' THEN 'Primary 4' WHEN 'Primary 4' THEN 'Primary 5'
+             WHEN 'Primary 5' THEN 'Primary 6' WHEN 'Primary 6' THEN 'JSS 1'
+             WHEN 'JSS 1' THEN 'JSS 2' WHEN 'JSS 2' THEN 'JSS 3'
+             WHEN 'JSS 3' THEN 'SS 1' WHEN 'SS 1' THEN 'SS 2'
+             WHEN 'SS 2' THEN 'SS 3' WHEN 'SS 3' THEN 'Graduated'
+             ELSE current_class END
+           WHERE current_class = ANY($1::varchar[])`,
+          [nigeriaClasses]
+        );
+        await client.query('UPDATE school_calendar SET promotion_year = $1 WHERE id = TRUE', [year]);
+      }
+      await client.query('COMMIT');
+      promotionCheckYear = year;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  })().finally(() => { promotionCheck = null; });
+  return promotionCheck;
+}
+
+app.use(async (_req, _res, next) => {
+  try { await promoteStudentsIfDue(); next(); } catch (error) { next(error); }
+});
 
 async function logActivity(userId: string | null, event: string, metadata: Record<string, unknown> = {}) {
   await query('INSERT INTO activity_logs (user_id, event, metadata) VALUES ($1, $2, $3)', [
@@ -25,6 +73,54 @@ app.get('/api/health', async (_req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.get('/api/public/home', async (_req, res, next) => {
+  try {
+    const [news, calendar] = await Promise.all([
+      query('SELECT id, heading, body, created_at FROM school_news ORDER BY created_at DESC LIMIT 50'),
+      query('SELECT vacation_date, results_release_date, resumption_date FROM school_calendar WHERE id = TRUE')
+    ]);
+    res.json({ news: news.rows, calendar: calendar.rows[0] });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/owner/news', authenticate, requireRole('owner'), async (_req, res, next) => {
+  try { res.json({ news: (await query('SELECT id, heading, body, created_at FROM school_news ORDER BY created_at DESC')).rows }); }
+  catch (error) { next(error); }
+});
+
+app.post('/api/owner/news', authenticate, requireRole('owner'), async (req, res, next) => {
+  try {
+    const input = newsSchema.parse(req.body);
+    const news = await query('INSERT INTO school_news (heading, body) VALUES ($1, $2) RETURNING id, heading, body, created_at', [input.heading, input.body]);
+    res.status(201).json({ news: news.rows[0] });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/owner/news/:id', authenticate, requireRole('owner'), async (req, res, next) => {
+  try {
+    const result = await query('DELETE FROM school_news WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!result.rowCount) { res.status(404).json({ error: 'News post not found.' }); return; }
+    res.json({ message: 'News post removed.' });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/owner/calendar', authenticate, requireRole('owner'), async (_req, res, next) => {
+  try { res.json({ calendar: (await query('SELECT vacation_date, results_release_date, resumption_date FROM school_calendar WHERE id = TRUE')).rows[0] }); }
+  catch (error) { next(error); }
+});
+
+app.put('/api/owner/calendar', authenticate, requireRole('owner'), async (req, res, next) => {
+  try {
+    const input = schoolCalendarSchema.parse(req.body);
+    const result = await query(
+      `UPDATE school_calendar SET vacation_date = $1, results_release_date = $2, resumption_date = $3
+       WHERE id = TRUE RETURNING vacation_date, results_release_date, resumption_date`,
+      [input.vacationDate, input.resultsReleaseDate, input.resumptionDate]
+    );
+    res.json({ calendar: result.rows[0] });
+  } catch (error) { next(error); }
 });
 
 app.post('/api/auth/register/student', async (req, res, next) => {
@@ -157,7 +253,7 @@ app.post('/api/owner/password', authenticate, requireRole('owner'), async (req, 
 
 app.get('/api/owner/students', authenticate, requireRole('owner'), async (_req, res, next) => {
   try {
-    const result = await query('SELECT id, admission_number, name, active, created_at FROM allowed_students ORDER BY created_at DESC');
+    const result = await query('SELECT id, admission_number, name, active, current_class, created_at FROM allowed_students ORDER BY current_class, name');
     res.json({ students: result.rows });
   } catch (error) { next(error); }
 });
@@ -166,10 +262,10 @@ app.post('/api/owner/students', authenticate, requireRole('owner'), async (req, 
   try {
     const input = studentSchema.parse(req.body);
     const result = await query(
-      `INSERT INTO allowed_students (admission_number, name) VALUES ($1, $2)
-       ON CONFLICT (admission_number) DO UPDATE SET name = EXCLUDED.name, active = true
-       RETURNING id, admission_number, name, active, created_at`,
-      [input.admissionNumber, input.name]
+      `INSERT INTO allowed_students (admission_number, name, current_class) VALUES ($1, $2, $3)
+       ON CONFLICT (admission_number) DO UPDATE SET name = EXCLUDED.name, current_class = EXCLUDED.current_class, active = true
+       RETURNING id, admission_number, name, active, current_class, created_at`,
+      [input.admissionNumber, input.name, input.currentClass]
     );
     res.status(201).json({ student: result.rows[0] });
   } catch (error) { next(error); }

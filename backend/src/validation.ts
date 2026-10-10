@@ -12,7 +12,8 @@ export const changePasswordSchema = z.object({
 
 export const studentSchema = z.object({
   admissionNumber: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9/-]+$/),
-  name: z.string().trim().min(2).max(120)
+  name: z.string().trim().min(2).max(120),
+  currentClass: z.enum(['Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3', 'Graduated'])
 });
 
 export const teacherSchema = z.object({
@@ -38,4 +39,15 @@ export const resultSchema = z.object({
   term: z.enum(['Term 1', 'Term 2', 'Term 3']),
   subject: z.string().trim().min(1).max(80),
   score: z.number().min(0).max(100)
+});
+
+export const newsSchema = z.object({
+  heading: z.string().trim().min(3).max(160),
+  body: z.string().trim().min(1).max(10000)
+});
+
+export const schoolCalendarSchema = z.object({
+  vacationDate: z.string().date().nullable(),
+  resultsReleaseDate: z.string().date().nullable(),
+  resumptionDate: z.string().date().nullable()
 });

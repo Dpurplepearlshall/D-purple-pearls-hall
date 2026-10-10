@@ -7,7 +7,9 @@ Full-stack school whitelist portal built with React/Vite/TypeScript, an Express/
 - Owner login uses the configured owner username; students and teachers use their registered Gmail address with JWT authentication and bcrypt password hashing.
 - Students and teachers can register only when their admission number/teacher ID is active on the owner-managed whitelist; they provide a Gmail address and password, while their display name comes from the school record.
 - Inactive or unlisted accounts cannot log in and receive a contact-owner message.
-- Owner console to add, list, and delete (soft-disable) students and teachers. Deleting also removes the related login.
+- Owner console to add, class-group, list, and deactivate students and teachers. Deactivating removes the login but preserves student records and past scores.
+- Public school home page with announcements, owner-managed news posts, and vacation, results-release, and resumption dates.
+- Students can be entered in Nigerian class order (Primary 1-6, JSS 1-3, SS 1-3); classes advance once annually from September, and SS 3 advances to Graduated.
 - Teachers and owners can upload term results for an active student, including the student's current class; the class is retained with every result and in the upload history.
 - Students see each term average out of 100 and their rank among students with results in that term.
 - Owners can select an admission number in the student list to inspect the student's scores and the complete term ranking.
@@ -46,7 +48,7 @@ npm test
 
 ## Using the portal
 
-Log in as the seeded owner, add active students and teachers, then have each person register from the login screen using their whitelisted ID and a password. Teachers can upload results for active student admission numbers by entering the current class, term, subjects, and scores. Students see term averages and rankings, while owners can click an admission number to inspect scores and the complete ranking for that term. Owner activity shows sign-ins and uploads, including the class and term.
+The public home page displays school announcements and calendar dates; sign in using the controls at its top right. Log in as the seeded owner, add active students with their class and teachers, then have each person register using their whitelisted ID and a password. Teachers upload results for active student admission numbers with current class, term, subjects, and scores. Students see term histories, averages, and rankings. Owners can click an admission number in the class-grouped student register to inspect both active and inactive students' historical scores and class rankings. Owner activity shows sign-ins and uploads, including class and term.
 
 ## Environment variables
 

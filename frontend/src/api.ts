@@ -23,14 +23,22 @@ export const api = {
   registerTeacher: (teacherId: string, email: string, password: string) =>
     request<{ message: string }>('/auth/register/teacher', { method: 'POST', body: JSON.stringify({ teacherId, email, password }) }),
   students: () => request<{ students: Student[] }>('/owner/students'),
-  addStudent: (admissionNumber: string, name: string) =>
-    request<{ student: Student }>('/owner/students', { method: 'POST', body: JSON.stringify({ admissionNumber, name }) }),
+  addStudent: (admissionNumber: string, name: string, currentClass: string) =>
+    request<{ student: Student }>('/owner/students', { method: 'POST', body: JSON.stringify({ admissionNumber, name, currentClass }) }),
   deleteStudent: (id: string) => request<{ message: string }>(`/owner/students/${id}`, { method: 'DELETE' }),
   teachers: () => request<{ teachers: Teacher[] }>('/owner/teachers'),
   addTeacher: (teacherId: string, name: string) =>
     request<{ teacher: Teacher }>('/owner/teachers', { method: 'POST', body: JSON.stringify({ teacherId, name }) }),
   deleteTeacher: (id: string) => request<{ message: string }>(`/owner/teachers/${id}`, { method: 'DELETE' }),
   activity: () => request<{ activity: Activity[] }>('/owner/activity'),
+  publicHome: () => request<PublicHome>('/public/home'),
+  news: () => request<{ news: NewsPost[] }>('/owner/news'),
+  addNews: (heading: string, body: string) =>
+    request<{ news: NewsPost }>('/owner/news', { method: 'POST', body: JSON.stringify({ heading, body }) }),
+  deleteNews: (id: string) => request<{ message: string }>(`/owner/news/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  calendar: () => request<{ calendar: SchoolCalendar }>('/owner/calendar'),
+  saveCalendar: (calendar: SchoolCalendar) =>
+    request<{ calendar: SchoolCalendar }>('/owner/calendar', { method: 'PUT', body: JSON.stringify(calendar) }),
   uploadResult: (data: { studentAdmissionNumber: string; className: string; term: string; subject: string; score: number }) =>
     request<{ result: { id: string; created_at: string } }>('/results', { method: 'POST', body: JSON.stringify(data) })
   ,
@@ -38,7 +46,7 @@ export const api = {
   studentResults: (id: string) => request<StudentResultDetails>(`/owner/students/${encodeURIComponent(id)}/results`)
 };
 
-export type Student = { id: string; admission_number: string; name: string; active: boolean; created_at: string };
+export type Student = { id: string; admission_number: string; name: string; active: boolean; current_class: string; created_at: string };
 export type Teacher = { id: string; teacher_id: string; name: string; active: boolean; created_at: string };
 export type Activity = { id: number; event: string; metadata: Record<string, unknown>; created_at: string; username?: string; display_name?: string; role?: string };
 export type Result = { id: string; term: string; class_name: string; subject: string; score: number; created_at: string };
@@ -50,3 +58,6 @@ export type StudentResultDetails = {
   summaries: TermSummary[];
   rankings: Ranking[];
 };
+export type NewsPost = { id: string; heading: string; body: string; created_at: string };
+export type SchoolCalendar = { vacation_date: string | null; results_release_date: string | null; resumption_date: string | null };
+export type PublicHome = { news: NewsPost[]; calendar: SchoolCalendar };

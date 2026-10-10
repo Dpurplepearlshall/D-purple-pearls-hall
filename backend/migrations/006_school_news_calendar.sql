@@ -1,0 +1,28 @@
+ALTER TABLE allowed_students
+  ADD COLUMN IF NOT EXISTS current_class VARCHAR(20) NOT NULL DEFAULT 'JSS 1';
+
+CREATE TABLE IF NOT EXISTS school_news (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  heading VARCHAR(160) NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS school_calendar (
+  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+  vacation_date DATE,
+  results_release_date DATE,
+  resumption_date DATE,
+  promotion_year INTEGER
+);
+
+INSERT INTO school_calendar (id, promotion_year)
+VALUES (
+  TRUE,
+  CASE
+    WHEN EXTRACT(MONTH FROM CURRENT_TIMESTAMP) >= 9
+      THEN EXTRACT(YEAR FROM CURRENT_TIMESTAMP)::INTEGER
+    ELSE (EXTRACT(YEAR FROM CURRENT_TIMESTAMP)::INTEGER - 1)
+  END
+)
+ON CONFLICT (id) DO NOTHING;
