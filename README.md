@@ -16,7 +16,7 @@ Full-stack school whitelist portal built with React/Vite/TypeScript, an Express/
 - Owners can select an admission number in the student list to inspect the student's scores and the complete term ranking.
 - Owner activity page lists login and result-upload events with timestamps.
 - Owner account support can reset the password for an active, registered student or teacher; the owner shares the temporary password securely.
-- The owner can download student, teacher, result, and activity CSV files, plus a JSON data backup. Backups exclude passwords, password hashes, and tokens and should be stored securely.
+- The owner can download student, teacher, result, and activity reports as PDFs, plus a complete PDF data backup. Backups exclude passwords, password hashes, and tokens and should be stored securely.
 - SQL migration and create-only environment-driven owner seed, so an owner-changed password persists across restarts; no credentials or secrets are committed.
 
 ## Local setup
@@ -51,7 +51,7 @@ npm test
 
 ## Using the portal
 
-The public home page displays school announcements and calendar dates; sign in using the controls at its top right. Log in as the seeded owner, add active students with their class and teachers, then have each person register using their whitelisted ID and a password. Teachers upload results for active student admission numbers with current class, term, subjects, and scores. Students see term histories, averages, and rankings and can print a term report card. Owners can click an admission number in the class-grouped student register to inspect both active and inactive students' historical scores and class rankings, and print a term report card. Use the Account support page to reset an active registered student's or teacher's password, and Data & backups to download CSV exports or a JSON school-data backup. Keep downloaded exports and backups private; they do not contain login credentials.
+The public home page displays school announcements and calendar dates; sign in using the controls at its top right. Log in as the seeded owner, add active students with their class and teachers, then have each person register using their whitelisted ID and a password. Teachers upload results for active student admission numbers with current class, term, subjects, and scores. Students see term histories, averages, and rankings and can print a term report card. Owners can click an admission number in the class-grouped student register to inspect both active and inactive students' historical scores and class rankings, and print a term report card. Use the Account support page to reset an active registered student's or teacher's password, and Data & backups to download PDF reports or a complete PDF school-data backup. Keep downloaded exports and backups private; they do not contain login credentials.
 
 ## Environment variables
 

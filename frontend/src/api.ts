@@ -34,7 +34,7 @@ export const api = {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = dataset === 'backup' ? 'school-portal-backup.json' : `${dataset}.csv`;
+    link.download = dataset === 'backup' ? 'school-portal-backup.pdf' : `${dataset}.pdf`;
     document.body.append(link);
     link.click();
     link.remove();

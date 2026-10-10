@@ -5,6 +5,7 @@ import { pool, query } from './db.js';
 import { authenticate, comparePassword, hashPassword, issueToken, requireRole } from './auth.js';
 import { errorHandler, notFound } from './middleware.js';
 import { changePasswordSchema, loginSchema, newsSchema, ownerPasswordResetSchema, registrationSchema, resultSchema, schoolCalendarSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
+import { createTextPdf } from './pdf.js';
 
 const app = express();
 app.use(cors({ origin: config.frontendUrl, credentials: false }));
@@ -67,16 +68,16 @@ async function logActivity(userId: string | null, event: string, metadata: Recor
   ]);
 }
 
-function csvCell(value: unknown) {
-  let text = value instanceof Date ? value.toISOString() : value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
-  if (/^\s*[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return `"${text.replace(/"/g, '""')}"`;
-}
-
-function toCsv(headers: string[], rows: Array<Record<string, unknown>>) {
-  return [headers, ...rows.map((row) => headers.map((header) => row[header] ?? ''))]
-    .map((row) => row.map(csvCell).join(','))
-    .join('\r\n');
+function exportLines(headers: readonly string[], rows: Array<Record<string, unknown>>) {
+  return [
+    `Records: ${rows.length}`,
+    '',
+    ...rows.flatMap((row, index) => [
+      `Record ${index + 1}`,
+      ...headers.map((header) => `${header.replace(/_/g, ' ')}: ${row[header] instanceof Date ? (row[header] as Date).toISOString() : typeof row[header] === 'object' && row[header] !== null ? JSON.stringify(row[header]) : String(row[header] ?? '')}`),
+      ''
+    ])
+  ];
 }
 
 app.get('/api/health', async (_req, res, next) => {
@@ -373,24 +374,28 @@ app.get('/api/owner/exports/:dataset', authenticate, requireRole('owner'), async
   try {
     const datasets = {
       students: {
-        filename: 'students.csv',
+        filename: 'students.pdf',
+        title: 'Student List',
         headers: ['admission_number', 'name', 'current_class', 'active', 'created_at'],
         sql: 'SELECT admission_number, name, current_class, active, created_at FROM allowed_students ORDER BY current_class, name'
       },
       teachers: {
-        filename: 'teachers.csv',
+        filename: 'teachers.pdf',
+        title: 'Teacher List',
         headers: ['teacher_id', 'name', 'active', 'created_at'],
         sql: 'SELECT teacher_id, name, active, created_at FROM allowed_teachers ORDER BY name'
       },
       results: {
-        filename: 'results.csv',
+        filename: 'results.pdf',
+        title: 'Student Results',
         headers: ['admission_number', 'student_name', 'class_name', 'term', 'subject', 'score', 'created_at'],
         sql: `SELECT s.admission_number, s.name AS student_name, r.class_name, r.term, r.subject, r.score, r.created_at
               FROM results r JOIN allowed_students s ON s.id = r.student_id
               ORDER BY s.admission_number, r.term, r.created_at`
       },
       activity: {
-        filename: 'activity.csv',
+        filename: 'activity.pdf',
+        title: 'School Activity Log',
         headers: ['event', 'username', 'display_name', 'role', 'metadata', 'created_at'],
         sql: `SELECT a.event, u.username, u.display_name, u.role, a.metadata, a.created_at
               FROM activity_logs a LEFT JOIN users u ON u.id = a.user_id
@@ -405,7 +410,7 @@ app.get('/api/owner/exports/:dataset', authenticate, requireRole('owner'), async
     const dataset = datasets[requestedDataset as keyof typeof datasets];
     const rows = await query(dataset.sql);
     res.set('Cache-Control', 'no-store');
-    res.attachment(dataset.filename).type('text/csv').send(toCsv([...dataset.headers], rows.rows));
+    res.attachment(dataset.filename).type('application/pdf').send(createTextPdf(dataset.title, exportLines(dataset.headers, rows.rows)));
   } catch (error) { next(error); }
 });
 
@@ -423,16 +428,21 @@ app.get('/api/owner/backup', authenticate, requireRole('owner'), async (_req, re
              FROM activity_logs a LEFT JOIN users u ON u.id = a.user_id
              ORDER BY a.created_at`)
     ]);
-    res.set('Cache-Control', 'no-store').attachment('school-portal-backup.json').json({
-      exportedAt: new Date().toISOString(),
-      note: 'This data backup intentionally excludes passwords, password hashes, tokens, and login credentials.',
-      students: students.rows,
-      teachers: teachers.rows,
-      results: results.rows,
-      news: news.rows,
-      calendar: calendar.rows[0] ?? null,
-      activity: activity.rows
-    });
+    const sections: Array<[string, string[], Array<Record<string, unknown>>]> = [
+      ['Students', ['admission_number', 'name', 'current_class', 'active', 'created_at'], students.rows],
+      ['Teachers', ['teacher_id', 'name', 'active', 'created_at'], teachers.rows],
+      ['Results', ['admission_number', 'student_name', 'class_name', 'term', 'subject', 'score', 'created_at'], results.rows],
+      ['School news', ['heading', 'body', 'created_at'], news.rows],
+      ['School calendar', ['vacation_date', 'results_release_date', 'resumption_date', 'promotion_year'], calendar.rows],
+      ['Activity log', ['event', 'metadata', 'created_at', 'username', 'display_name', 'role'], activity.rows]
+    ];
+    const lines = [
+      `Exported at: ${new Date().toISOString()}`,
+      'This data backup excludes passwords, password hashes, tokens, and login credentials.',
+      '',
+      ...sections.flatMap(([title, headers, rows]) => [`${title} (${rows.length})`, ...exportLines(headers, rows), ''])
+    ];
+    res.set('Cache-Control', 'no-store').attachment('school-portal-backup.pdf').type('application/pdf').send(createTextPdf('School Portal Data Backup', lines));
   } catch (error) { next(error); }
 });
 
