@@ -14,7 +14,7 @@ Full-stack school whitelist portal built with React/Vite/TypeScript, an Express/
 - Students see each term average out of 100 and their rank among students with results in that term.
 - Owners can select an admission number in the student list to inspect the student's scores and the complete term ranking.
 - Owner activity page lists login and result-upload events with timestamps.
-- SQL migration and environment-driven owner seed; no credentials or secrets are committed.
+- SQL migration and create-only environment-driven owner seed, so an owner-changed password persists across restarts; no credentials or secrets are committed.
 
 ## Local setup
 

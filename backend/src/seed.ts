@@ -12,7 +12,7 @@ const passwordHash = await hashPassword(config.ownerPassword);
 await query(
   `INSERT INTO users (username, password_hash, role, display_name)
    VALUES ($1, $2, 'owner', 'System owner')
-   ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = 'owner'`,
+   ON CONFLICT (username) DO NOTHING`,
   [config.ownerUsername, passwordHash]
 );
 console.log(`Owner account ready for ${config.ownerUsername}.`);
