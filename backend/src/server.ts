@@ -10,7 +10,7 @@ const app = express();
 app.use(cors({ origin: config.frontendUrl, credentials: false }));
 app.use(express.json({ limit: '1mb' }));
 
-const nigeriaClasses = ['Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3', 'Graduated'];
+const nigeriaClasses = ['Nursery 1', 'Nursery 2', 'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3', 'Graduated'];
 let promotionCheckYear: number | null = null;
 let promotionCheck: Promise<void> | null = null;
 
@@ -30,6 +30,7 @@ async function promoteStudentsIfDue() {
         await client.query(
           `UPDATE allowed_students
            SET current_class = CASE current_class
+             WHEN 'Nursery 1' THEN 'Nursery 2' WHEN 'Nursery 2' THEN 'Primary 1'
              WHEN 'Primary 1' THEN 'Primary 2' WHEN 'Primary 2' THEN 'Primary 3'
              WHEN 'Primary 3' THEN 'Primary 4' WHEN 'Primary 4' THEN 'Primary 5'
              WHEN 'Primary 5' THEN 'Primary 6' WHEN 'Primary 6' THEN 'JSS 1'
