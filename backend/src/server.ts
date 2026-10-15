@@ -4,7 +4,7 @@ import { config } from './config.js';
 import { pool, query } from './db.js';
 import { authenticate, comparePassword, hashPassword, issueToken, requireRole } from './auth.js';
 import { errorHandler, notFound } from './middleware.js';
-import { changePasswordSchema, loginSchema, newsSchema, ownerPasswordResetSchema, registrationSchema, resultSchema, schoolCalendarSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
+import { changePasswordSchema, loginSchema, newsSchema, ownerPasswordResetSchema, registrationSchema, resultSchema, schoolCalendarSchema, selfServicePasswordResetSchema, studentSchema, teacherRegistrationSchema, teacherSchema } from './validation.js';
 import { createTextPdf } from './pdf.js';
 
 const app = express();
@@ -240,6 +240,37 @@ app.post('/api/auth/login', async (req, res, next) => {
     const authUser = { id: user.id, email: user.username, role: user.role, displayName: user.display_name };
     await logActivity(user.id, 'login', { role: user.role });
     res.json({ token: issueToken(authUser), user: authUser });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/forgot-password', async (req, res, next) => {
+  try {
+    const input = selfServicePasswordResetSchema.parse(req.body);
+    const account = input.role === 'student'
+      ? await query<{ id: string }>(
+        `SELECT u.id FROM users u
+         JOIN allowed_students s ON s.id = u.student_id
+         WHERE s.admission_number = $1 AND s.active = true AND u.role = 'student'
+           AND lower(u.email) = lower($2)`,
+        [input.schoolId, input.email]
+      )
+      : await query<{ id: string }>(
+        `SELECT u.id FROM users u
+         JOIN allowed_teachers t ON t.id = u.teacher_id
+         WHERE t.teacher_id = $1 AND t.active = true AND u.role = 'teacher'
+           AND lower(u.email) = lower($2)`,
+        [input.schoolId, input.email]
+      );
+    if (account.rowCount) {
+      await query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+        await hashPassword(input.newPassword),
+        account.rows[0].id
+      ]);
+      await logActivity(account.rows[0].id, 'password_reset');
+    }
+    res.json({ message: 'If the school ID and registered email match an active account, the password has been changed.' });
   } catch (error) {
     next(error);
   }

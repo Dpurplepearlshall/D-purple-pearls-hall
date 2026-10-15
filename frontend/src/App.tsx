@@ -21,7 +21,11 @@ function Login({ onLogin, onBack, initialOwnerMode }: { onLogin: (user: User, to
   const [ownerMode, setOwnerMode] = useState(initialOwnerMode);
   const [registerRole, setRegisterRole] = useState<'student' | 'teacher'>('student');
   const [notice, setNotice] = useState<Notice>(null);
-  const [showRecoveryHelp, setShowRecoveryHelp] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryRole, setRecoveryRole] = useState<'student' | 'teacher'>('student');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryPassword, setRecoveryPassword] = useState('');
+  const [recoveryConfirm, setRecoveryConfirm] = useState('');
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setNotice(null);
     try {
@@ -36,24 +40,48 @@ function Login({ onLogin, onBack, initialOwnerMode }: { onLogin: (user: User, to
       }
     } catch (error) { setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Something went wrong.' }); }
   };
+  const resetPassword = async (e: React.FormEvent) => {
+    e.preventDefault(); setNotice(null);
+    if (recoveryPassword !== recoveryConfirm) {
+      setNotice({ type: 'error', text: 'The new passwords do not match.' });
+      return;
+    }
+    try {
+      const result = await api.resetOwnPassword(recoveryRole, identifier, recoveryEmail, recoveryPassword);
+      setNotice({ type: 'success', text: result.message });
+      setRecoveryMode(false);
+      setPassword('');
+      setRecoveryPassword('');
+      setRecoveryConfirm('');
+    } catch (error) { setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Unable to reset the password.' }); }
+  };
   return <main className="auth-shell">
     <section className="auth-card">
       <img className="brand-mark" src="/school-logo.jpg" alt="D Purple Pearls Hall logo" />
       <p className="eyebrow">D-PURPLE PEARLS HALL</p>
-      <h1>{register ? `${registerRole === 'student' ? 'Student' : 'Teacher'} registration` : ownerMode ? 'Owner login' : 'Welcome back'}</h1>
-      <p className="muted">{register ? `Your ${registerRole === 'student' ? 'admission number' : 'teacher ID'} must be on the owner's active whitelist. Your registered name comes from the school record.` : ownerMode ? 'Sign in to manage whitelists, accounts, and activity.' : 'Students use their admission number and teachers use their teacher ID to sign in.'}</p>
+      <h1>{recoveryMode ? 'Reset your password' : register ? `${registerRole === 'student' ? 'Student' : 'Teacher'} registration` : ownerMode ? 'Owner login' : 'Welcome back'}</h1>
+      <p className="muted">{recoveryMode ? 'Enter your school ID and the email address on your account to set a new password.' : register ? `Your ${registerRole === 'student' ? 'admission number' : 'teacher ID'} must be on the owner's active whitelist. Your registered name comes from the school record.` : ownerMode ? 'Sign in to manage whitelists, accounts, and activity.' : 'Students use their admission number and teachers use their teacher ID to sign in.'}</p>
       {notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}
-      <form onSubmit={submit}>
-        {register && <><div className="role-toggle"><button type="button" className={registerRole === 'student' ? 'selected' : ''} onClick={() => setRegisterRole('student')}>Student</button><button type="button" className={registerRole === 'teacher' ? 'selected' : ''} onClick={() => setRegisterRole('teacher')}>Teacher</button></div><Field label={registerRole === 'student' ? 'Admission number' : 'Teacher ID'} value={identifier} onChange={setIdentifier} /><Field label="Gmail address" type="email" value={email} onChange={setEmail} placeholder="you@gmail.com" /></>}
-        {!register && <Field label={ownerMode ? 'Owner name' : 'Admission number or Teacher ID'} type="text" value={identifier} onChange={setIdentifier} placeholder={ownerMode ? 'Umm Raaidah' : 'Enter your school ID'} />}
-        <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" />
-        <button className="primary" type="submit">{register ? `Create ${registerRole} account` : 'Sign in'}</button>
-      </form>
-      {!register && !ownerMode && <button className="link-button secondary-link" onClick={() => setShowRecoveryHelp(!showRecoveryHelp)}>Forgot your password?</button>}
-      {showRecoveryHelp && <p className="recovery-help">Please contact the school owner with your admission number or teacher ID. The owner can reset your password and give you a temporary one securely.</p>}
-      <button className="link-button" onClick={() => { setRegister(!register); setOwnerMode(false); setNotice(null); }}>{register ? 'Already registered? Sign in' : 'Student or teacher: create account'}</button>
-      {!register && <button className="link-button secondary-link" onClick={() => { setOwnerMode(!ownerMode); setNotice(null); }}>{ownerMode ? 'Back to student/teacher login' : 'Owner login'}</button>}
-      {!register && <button className="link-button secondary-link" onClick={onBack}>Back to school news</button>}
+      {recoveryMode ? <form onSubmit={resetPassword}>
+        <div className="role-toggle"><button type="button" className={recoveryRole === 'student' ? 'selected' : ''} onClick={() => setRecoveryRole('student')}>Student</button><button type="button" className={recoveryRole === 'teacher' ? 'selected' : ''} onClick={() => setRecoveryRole('teacher')}>Teacher</button></div>
+        <Field label={recoveryRole === 'student' ? 'Admission number' : 'Teacher ID'} value={identifier} onChange={setIdentifier} />
+        <Field label="Registered email address" type="email" value={recoveryEmail} onChange={setRecoveryEmail} />
+        <Field label="New password" type="password" value={recoveryPassword} onChange={setRecoveryPassword} placeholder="At least 8 characters" />
+        <Field label="Confirm new password" type="password" value={recoveryConfirm} onChange={setRecoveryConfirm} placeholder="Enter the new password again" />
+        <button className="primary" type="submit">Change password</button>
+        <button type="button" className="link-button secondary-link" onClick={() => { setRecoveryMode(false); setNotice(null); }}>Back to sign in</button>
+      </form> : <>
+        <form onSubmit={submit}>
+          {register && <><div className="role-toggle"><button type="button" className={registerRole === 'student' ? 'selected' : ''} onClick={() => setRegisterRole('student')}>Student</button><button type="button" className={registerRole === 'teacher' ? 'selected' : ''} onClick={() => setRegisterRole('teacher')}>Teacher</button></div><Field label={registerRole === 'student' ? 'Admission number' : 'Teacher ID'} value={identifier} onChange={setIdentifier} /><Field label="Gmail address" type="email" value={email} onChange={setEmail} placeholder="you@gmail.com" /></>}
+          {!register && <Field label={ownerMode ? 'Owner name' : 'Admission number or Teacher ID'} type="text" value={identifier} onChange={setIdentifier} placeholder={ownerMode ? 'Umm Raaidah' : 'Enter your school ID'} />}
+          <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="At least 8 characters" />
+          <button className="primary" type="submit">{register ? `Create ${registerRole} account` : 'Sign in'}</button>
+        </form>
+        {!register && !ownerMode && <button className="link-button secondary-link" onClick={() => { setRecoveryMode(true); setRecoveryRole('student'); setIdentifier(''); setNotice(null); }}>Forgot your password?</button>}
+        <button className="link-button" onClick={() => { setRegister(!register); setOwnerMode(false); setNotice(null); }}>{register ? 'Already registered? Sign in' : 'Student or teacher: create account'}</button>
+        {!register && <button className="link-button secondary-link" onClick={() => { setOwnerMode(!ownerMode); setNotice(null); }}>{ownerMode ? 'Back to student/teacher login' : 'Owner login'}</button>}
+        {!register && <button className="link-button secondary-link" onClick={onBack}>Back to school news</button>}
+      </>}
     </section>
   </main>;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hashPassword, comparePassword } from './auth.js';
-import { ownerPasswordResetSchema, resultSchema, studentSchema } from './validation.js';
+import { ownerPasswordResetSchema, resultSchema, selfServicePasswordResetSchema, studentSchema } from './validation.js';
 
 describe('password security', () => {
   it('hashes and verifies passwords without storing plaintext', async () => {
@@ -25,6 +25,27 @@ describe('password security', () => {
       role: 'teacher',
       schoolId: 'T-001',
       temporaryPassword: 'short'
+    }).success).toBe(false);
+  });
+
+  it('validates self-service password resets against school IDs and registered email format', () => {
+    expect(selfServicePasswordResetSchema.safeParse({
+      role: 'student',
+      schoolId: 'ST-001',
+      email: 'student@example.com',
+      newPassword: 'a-new-secure-password'
+    }).success).toBe(true);
+    expect(selfServicePasswordResetSchema.safeParse({
+      role: 'owner',
+      schoolId: 'Umm Raaidah',
+      email: 'student@example.com',
+      newPassword: 'a-new-secure-password'
+    }).success).toBe(false);
+    expect(selfServicePasswordResetSchema.safeParse({
+      role: 'teacher',
+      schoolId: 'T-001',
+      email: 'not-an-email',
+      newPassword: 'a-new-secure-password'
     }).success).toBe(false);
   });
 

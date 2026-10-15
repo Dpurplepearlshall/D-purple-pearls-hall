@@ -16,6 +16,13 @@ export const ownerPasswordResetSchema = z.object({
   temporaryPassword: z.string().min(8).max(128)
 });
 
+export const selfServicePasswordResetSchema = z.object({
+  role: z.enum(['student', 'teacher']),
+  schoolId: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9/-]+$/),
+  email: z.string().trim().email().max(120),
+  newPassword: z.string().min(8).max(128)
+});
+
 export const studentSchema = z.object({
   admissionNumber: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9/-]+$/),
   name: z.string().trim().min(2).max(120),
